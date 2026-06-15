@@ -1,0 +1,611 @@
+Student.java
+------------------------------------------------------------------------
+package model;
+
+public class Student {
+
+    private int rollNo;
+    private String name;
+    private String course;
+    private double marks;
+
+    public Student() {}
+
+    public Student(int rollNo, String name,
+                   String course, double marks) {
+        this.rollNo = rollNo;
+        this.name = name;
+        this.course = course;
+        this.marks = marks;
+    }
+
+    public int getRollNo() {
+        return rollNo;
+    }
+
+    public void setRollNo(int rollNo) {
+        this.rollNo = rollNo;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getCourse() {
+        return course;
+    }
+
+    public void setCourse(String course) {
+        this.course = course;
+    }
+
+    public double getMarks() {
+        return marks;
+    }
+
+    public void setMarks(double marks) {
+        this.marks = marks;
+    }
+}
+
+
+
+StudentDAO.java
+------------------------------------------------------------------------
+package dao;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import model.Student;
+
+public class StudentDAO {
+	
+	private static final String url = "jdbc:mysql://localhost:3306/cdac";
+	private static final String user = "root";
+	private static final String pass = "cdacacts";
+	
+	public Connection getConnection() throws ClassNotFoundException, SQLException {
+		
+		Class.forName("com.mysql.cj.jdbc.Driver");
+		Connection con = DriverManager.getConnection(url, user, pass);
+		
+		return con;
+	}
+	
+	public int insertStudent(Student s) throws ClassNotFoundException, SQLException {
+        String sql = "insert into student values(?,?,?,?)";
+        
+        Connection con = getConnection();
+        
+        PreparedStatement ps = con.prepareStatement(sql);
+
+        ps.setInt(1, s.getRollNo());
+        ps.setString(2, s.getName());
+        ps.setString(3, s.getCourse());
+        ps.setDouble(4, s.getMarks());
+        int count = ps.executeUpdate();
+        return count;
+    }
+	
+	public List<Student> getAllStudents() throws ClassNotFoundException, SQLException {
+
+        List<Student> list = new ArrayList<>();
+
+        Connection con = getConnection();
+
+        String sql = "select * from student";
+
+        Statement st = con.createStatement();
+
+        ResultSet rs = st.executeQuery(sql);
+
+        while(rs.next()) {
+
+            Student s = new Student(
+                    rs.getInt("roll_no"),
+                    rs.getString("name"),
+                    rs.getString("course"),
+                    rs.getDouble("marks")
+            );
+
+            list.add(s);
+        }
+
+        return list;
+    }
+	
+	public Student getStudent(int rollNo) throws ClassNotFoundException, SQLException {
+
+        Student s = null;
+
+        Connection con = getConnection();
+
+        String sql = "select * from student where roll_no=?";
+
+        PreparedStatement ps = con.prepareStatement(sql);
+
+        ps.setInt(1, rollNo);
+
+        ResultSet rs = ps.executeQuery();
+
+        if(rs.next()) {
+
+            s = new Student(
+                    rs.getInt("roll_no"),
+                    rs.getString("name"),
+                    rs.getString("course"),
+                    rs.getDouble("marks")
+            );
+        }
+
+        return s;
+        
+    }
+	
+	public int updateStudent(Student s) throws ClassNotFoundException, SQLException {
+
+		Connection con = getConnection();
+
+        String sql =
+        "update student set name=?,course=?,marks=? where roll_no=?";
+
+        PreparedStatement ps =
+                con.prepareStatement(sql);
+
+        ps.setString(1, s.getName());
+        ps.setString(2, s.getCourse());
+        ps.setDouble(3, s.getMarks());
+        ps.setInt(4, s.getRollNo());
+
+        int count = ps.executeUpdate();
+        
+        return count;
+
+    }
+	
+	public int deleteStudent(int rollNo) throws ClassNotFoundException, SQLException {
+
+		Connection con = getConnection();
+
+        String sql =
+                "delete from student where roll_no=?";
+
+        PreparedStatement ps =
+                con.prepareStatement(sql);
+
+        ps.setInt(1, rollNo);
+
+        int count = ps.executeUpdate();
+        
+        return count;
+    }
+
+}
+
+
+
+LoginServlet.java
+------------------------------------------------------------------------
+package servlet;
+
+import java.io.IOException;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+@WebServlet("/LoginServlet")
+public class LoginServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
+
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+	    String username = request.getParameter("username");
+	
+	    String password = request.getParameter("password");
+	
+	    if(username.equals("admin") && password.equals("admin123")) {
+	
+	        HttpSession session = request.getSession();
+	
+	        session.setAttribute("user", username);
+	
+	        response.sendRedirect("DisplayStudentsServlet");
+	
+	    } else {
+	        response.sendRedirect("login.jsp?error=true");
+	    }
+		
+	}
+
+}
+
+
+
+LogoutServlet.java
+------------------------------------------------------------------------
+package servlet;
+
+import java.io.IOException;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+
+@WebServlet("/LogoutServlet")
+public class LogoutServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
+
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		HttpSession session = request.getSession(false);
+
+        if(session != null) {
+        	session.invalidate();
+        }
+
+        response.sendRedirect("login.jsp");
+	}
+
+}
+
+
+
+AddStudentServlet.java
+------------------------------------------------------------------------
+package servlet;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import dao.StudentDAO;
+import model.Student;
+
+@WebServlet("/AddStudentServlet")
+public class AddStudentServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
+
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		Student s = new Student();
+
+        s.setRollNo(Integer.parseInt(request.getParameter("rollNo")));
+
+        s.setName(request.getParameter("name"));
+
+        s.setCourse(request.getParameter("course"));
+
+        s.setMarks(Double.parseDouble(request.getParameter("marks")));
+
+        StudentDAO dao = new StudentDAO();
+
+        try {
+			dao.insertStudent(s);
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+
+        response.sendRedirect("DisplayStudentsServlet");
+		
+	}
+
+}
+
+
+
+DisplayStudentServlet.java
+------------------------------------------------------------------------
+package servlet;
+
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.List;
+
+import javax.servlet.RequestDispatcher;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import dao.StudentDAO;
+import model.Student;
+
+
+@WebServlet("/DisplayStudentsServlet")
+public class DisplayStudentsServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
+
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		HttpSession session = request.getSession(false);
+
+        if(session == null) {
+            response.sendRedirect(
+                    "login.jsp");
+            return;
+        }
+
+        StudentDAO dao = new StudentDAO();
+
+        List<Student> list = null;
+		try {
+			list = dao.getAllStudents();
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+        request.setAttribute(
+                "students", list);
+
+        RequestDispatcher rd = request.getRequestDispatcher("dashboard.jsp");
+
+        rd.forward(request, response);
+		
+	}
+
+}
+
+
+UpdateStudentServlet.java
+------------------------------------------------------------------------
+package servlet;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import dao.StudentDAO;
+import model.Student;
+
+@WebServlet("/UpdateStudentServlet")
+public class UpdateStudentServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
+
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		Student s = new Student();
+
+        s.setRollNo(Integer.parseInt(request.getParameter("rollNo")));
+
+        s.setName(request.getParameter("name"));
+
+        s.setCourse(request.getParameter("course"));
+
+        s.setMarks(Double.parseDouble(request.getParameter("marks")));
+
+        StudentDAO dao =new StudentDAO();
+
+        try {
+			dao.updateStudent(s);
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+        response.sendRedirect("DisplayStudentsServlet");
+		
+	}
+
+}
+
+
+
+DeleteStudentServlet.java
+------------------------------------------------------------------------
+package servlet;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import dao.StudentDAO;
+
+@WebServlet("/DeleteStudentServlet")
+public class DeleteStudentServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
+
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		int rollNo = Integer.parseInt(request.getParameter("rollNo"));
+		
+		StudentDAO dao = new StudentDAO();
+		
+		try {
+			dao.deleteStudent(rollNo);
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		response.sendRedirect("DisplayStudentsServlet");
+		
+	}
+
+}
+
+
+login.jsp
+------------------------------------------------------------------------
+<%@ page language="java" contentType="text/html; charset=ISO-8859-1"
+    pageEncoding="ISO-8859-1"%>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Login</title>
+</head>
+<body>
+
+<h2>Login</h2>
+
+<form action="LoginServlet" method="post">
+
+Username:
+<input type="text"
+       name="username"><br><br>
+
+Password:
+<input type="password"
+       name="password"><br><br>
+
+<input type="submit"
+       value="Login">
+
+</form>
+
+</body>
+</html>
+
+
+addStudent.jsp
+------------------------------------------------------------------------
+<%@ page language="java" contentType="text/html; charset=ISO-8859-1"
+    pageEncoding="ISO-8859-1"%>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Add Student</title>
+</head>
+<body>
+
+<h2>Add Student</h2>
+
+<form action="AddStudentServlet"
+      method="post">
+
+Roll No:
+<input type="number" name="rollNo"><br><br>
+
+Name:
+<input type="text" name="name"><br><br>
+
+Course:
+<input type="text" name="course"><br><br>
+
+Marks:
+<input type="number"
+       step="0.01"
+       name="marks"><br><br>
+
+<input type="submit"
+       value="Add Student">
+
+</form>
+
+</body>
+</html>
+
+
+dashboard.jsp
+------------------------------------------------------------------------
+<%@ page import="java.util.*" %>
+<%@ page import="model.Student" %>
+
+<%
+if(session.getAttribute("user")==null){
+    response.sendRedirect("login.jsp");
+    return;
+}
+%>
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Dashboard</title>
+</head>
+<body>
+
+<h2>Student Records</h2>
+
+<a href="addStudent.jsp">Add Student</a>
+|
+<a href="LogoutServlet">Logout</a>
+
+<br><br>
+
+<table border="1">
+
+<tr>
+<th>Roll No</th>
+<th>Name</th>
+<th>Course</th>
+<th>Marks</th>
+<th>Action</th>
+</tr>
+
+<%
+List<Student> list =
+(List<Student>)
+request.getAttribute("students");
+
+for(Student s : list){
+%>
+
+<tr>
+<td><%= s.getRollNo() %></td>
+<td><%= s.getName() %></td>
+<td><%= s.getCourse() %></td>
+<td><%= s.getMarks() %></td>
+
+<td>
+
+<a href="DeleteStudentServlet?rollNo=<%=s.getRollNo()%>">
+Delete
+</a>
+
+</td>
+
+</tr>
+
+<%
+}
+%>
+
+</table>
+
+</body>
+</html>
